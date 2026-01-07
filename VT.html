@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>AWS D1.1 - COMPLETE INSPECTION CENTER</title>
+    <style>
+        :root { --metal: #2c3e50; --weld: #57606f; --accent: #ffa502; --danger: #ff4757; --success: #2ed573; --info: #3498db; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: #f1f2f6; margin: 0; padding: 20px; }
+        
+        .container { max-width: 1400px; margin: auto; display: grid; grid-template-columns: 1.7fr 1.3fr; gap: 20px; }
+        .header-box { grid-column: span 2; background: #1e272e; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 5px solid var(--accent); }
+
+        /* VIEWPORT */
+        .view-label { font-size: 13px; font-weight: bold; color: var(--accent); margin-bottom: 5px; text-transform: uppercase; }
+        .viewport { 
+            width: 100%; height: 200px; background: var(--metal); position: relative; 
+            border: 2px solid #3d3d3d; border-radius: 8px; overflow: hidden; cursor: crosshair; margin-bottom: 20px;
+        }
+
+        .weld-face { width: 100%; height: 70px; position: absolute; top: 50%; transform: translateY(-50%); background: repeating-linear-gradient(90deg, #4b4b4b, #57606f 12px, #4b4b4b 24px); box-shadow: inset 0 0 15px #000; z-index: 1; }
+        .weld-root { width: 100%; height: 45px; position: absolute; top: 50%; transform: translateY(-50%); background: #3d4652; border-top: 1px solid #555; border-bottom: 1px solid #555; box-shadow: inset 0 0 15px #111; z-index: 1; }
+
+        /* DEFECT VISUALS */
+        .defect { position: absolute; z-index: 10; pointer-events: none; }
+        .ip { height: 10px; background: #050505; box-shadow: 0 0 8px #000; border-radius: 10px; }
+        .undercut { height: 6px; background: rgba(0,0,0,0.7); filter: blur(1px); border-radius: 45% 15% 35% 10%; }
+        .lswf { height: 2px; background: #000; }
+        .crack-svg { position: absolute; overflow: visible; stroke: #000; stroke-width: 2; fill: none; z-index: 11; }
+        .porosity { background: #000; border-radius: 50%; }
+        .cluster-dot { width: 3px; height: 3px; background: #000; border-radius: 50%; position: absolute; }
+
+        /* RULER */
+        #ruler { position: absolute; border-top: 2px dashed var(--accent); pointer-events: none; display: none; z-index: 100; transform-origin: 0 0; }
+        #ruler-val { position: absolute; background: var(--accent); color: #000; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; display: none; z-index: 101; }
+
+        /* CARDS & TABLES */
+        .card { background: #f5f6fa; color: #2f3640; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .defect-grid { display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr; gap: 8px; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        select, input { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 12px; }
+        
+        table { width: 100%; border-collapse: collapse; background: #1e272e; color: #eee; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #3d4652; font-size: 12px; }
+        th { background: #2f3640; color: var(--accent); }
+        
+        .btn { border: none; padding: 12px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; text-transform: uppercase; }
+        .btn-submit { background: var(--success); color: white; }
+        .btn-next { background: var(--info); color: white; }
+        .btn-reset { background: var(--danger); color: white; width: auto; padding: 5px 12px; font-size: 10px; }
+
+        /* MODAL */
+        #modal-result { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 9999; justify-content: center; align-items: center; }
+        .cert-box { background: white; color: black; padding: 50px; border: 20px double #2c3e50; text-align: center; width: 600px; }
+
+        .key-answer-box { background: #1e272e; color: #fff; padding: 15px; border-radius: 5px; margin-top: 10px; border-left: 5px solid var(--accent); }
+        .key-row { display: flex; justify-content: space-between; font-size: 11px; border-bottom: 1px solid #444; padding: 5px 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-box">
+        <div><h2 style="margin:0">AWS D1.1 - PRACTICAL INSPECTION</h2></div>
+        <div>PESERTA: <span id="user-disp" style="color:var(--accent)">-</span></div>
+        <div>PROGRESS: <span id="progress-text">1 / 5</span></div>
+    </div>
+
+    <div id="viewport-section">
+        <div class="view-label">FACE VIEW</div>
+        <div id="view-face" class="viewport" onmousedown="startRuler(event)" onmousemove="moveRuler(event)" onmouseup="endRuler()">
+            <div class="weld-face"></div>
+            <div id="face-layer"></div>
+        </div>
+
+        <div class="view-label">ROOT VIEW</div>
+        <div id="view-root" class="viewport" onmousedown="startRuler(event)" onmousemove="moveRuler(event)" onmouseup="endRuler()">
+            <div class="weld-root"></div>
+            <div id="root-layer"></div>
+        </div>
+        
+        <div id="ruler"></div>
+        <div id="ruler-val">0 mm</div>
+
+        <div class="view-label" style="margin-top:10px;">Acceptance Criteria Reference</div>
+        <table>
+            <thead><tr><th>Defect Type</th><th>AWS D1.1 Acceptable Limit</th></tr></thead>
+            <tbody>
+                <tr><td>Crack / IP / LSWF</td><td>Prohibited (None Allowed)</td></tr>
+                <tr><td>Porosity / Cluster</td><td>Max 2.0 mm</td></tr>
+                <tr><td>Undercut</td><td>Max 1.0 mm</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="sidebar">
+        <div class="card" id="form-login">
+            <label>NAMA INSPECTOR:</label>
+            <input type="text" id="input-name" placeholder="Masukan Nama Lengkap...">
+            <button class="btn btn-next" style="margin-top:15px;" onclick="startExam()">MULAI UJIAN</button>
+        </div>
+
+        <div class="card" id="form-exam" style="display:none;">
+            <div id="inputs-container"></div>
+            <label style="font-weight:bold; font-size:12px;">KESIMPULAN SPESIMEN:</label>
+            <select id="final-decision" style="margin-bottom:15px;">
+                <option value="ACCEPT">ACCEPTED</option>
+                <option value="REJECT">REJECTED</option>
+            </select>
+            <button id="btn-submit" class="btn btn-submit" onclick="submitSpecimen()">SUBMIT JAWABAN</button>
+            
+            <div id="key-section" style="display:none;">
+                <div class="key-answer-box">
+                    <b style="color:var(--accent); font-size:12px;">KUNCI JAWABAN MASTER:</b>
+                    <div id="key-text"></div>
+                </div>
+                <button class="btn btn-next" style="margin-top:10px;" onclick="nextStep()">NEXT SPECIMEN</button>
+            </div>
+        </div>
+
+        <div style="margin-top:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h4 style="color:var(--accent); margin:0;">LOG REKAP SESSION</h4>
+                <button class="btn btn-reset" onclick="resetLogs()">RESET LOG</button>
+            </div>
+            <table style="font-size:11px;">
+                <thead><tr><th>NAMA</th><th>SKOR</th><th>HASIL</th></tr></thead>
+                <tbody id="log-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="modal-result">
+    <div class="cert-box">
+        <h1>EXAMINATION COMPLETE</h1>
+        <p>Inspector Name:</p>
+        <h2 id="res-name">-</h2>
+        <div id="res-score" style="font-size:70px; font-weight:bold;">0</div>
+        <p id="res-status" style="font-weight:bold;"></p>
+        <button class="btn btn-submit" style="width:250px; margin-top:20px;" onclick="restartSimulator()">RESTART SIMULATOR</button>
+    </div>
+</div>
+
+<script>
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbzQd7prnbv4aY0BRF_b2BCVbBHZa4q_DKfnfjB22bNfTkxNCrIuzlT6FMM9PpsbBB9c/exec'; 
+
+    let specIndex = 1, totalScore = 0, currentAnswers = [], currentParticipant = "";
+    let isDrawing = false, startX, startY, activeViewport = null;
+
+    const types = [
+        { id: 'crack', label: 'Crack', view: 'face' },
+        { id: 'porosity', label: 'Porosity', view: 'face' },
+        { id: 'cluster', label: 'Cluster Porosity', view: 'face' },
+        { id: 'undercut', label: 'Undercut', view: 'face' },
+        { id: 'ip', label: 'Incomp. Penetration', view: 'root' },
+        { id: 'lswf', label: 'Lack Side Fusion', view: 'root' }
+    ];
+
+    function startExam() {
+        const n = document.getElementById('input-name').value;
+        if(!n) return alert("Isi nama!");
+        currentParticipant = n;
+        document.getElementById('user-disp').innerText = n.toUpperCase();
+        document.getElementById('form-login').style.display = 'none';
+        document.getElementById('form-exam').style.display = 'block';
+        specIndex = 1; totalScore = 0;
+        loadForm(); generateDefects();
+    }
+
+    function loadForm() {
+        let h = "";
+        for(let i=1; i<=3; i++) {
+            h += `<div class="defect-grid">
+                <select id="t${i}">${types.map(t => `<option value="${t.id}">${t.label}</option>`).join('')}</select>
+                <input type="number" id="s${i}" placeholder="mm" step="0.1">
+                <select id="d${i}"><option value="ACCEPT">ACC</option><option value="REJECT">REJ</option></select>
+            </div>`;
+        }
+        document.getElementById('inputs-container').innerHTML = h;
+    }
+
+    function generateDefects() {
+        const face = document.getElementById('face-layer');
+        const root = document.getElementById('root-layer');
+        face.innerHTML = ""; root.innerHTML = ""; currentAnswers = [];
+        for(let i=0; i<3; i++) {
+            const def = types[Math.floor(Math.random() * types.length)];
+            const sizeMm = (Math.random() * 3.5 + 0.8).toFixed(1);
+            const sizePx = sizeMm / 0.2;
+            const x = 80 + (i * 240);
+            const div = document.createElement('div');
+            div.className = `defect ${def.id}`;
+            div.style.left = x + 'px'; div.style.width = sizePx + 'px';
+            if(def.id === 'ip') { div.style.top = '95px'; root.appendChild(div); }
+            else if(def.id === 'lswf') { div.style.top = Math.random() > 0.5 ? '78px' : '118px'; root.appendChild(div); }
+            else if(def.id === 'cluster') {
+                div.style.top='90px'; div.style.height=sizePx+'px';
+                for(let j=0; j<8; j++){
+                    let dot=document.createElement('div'); dot.className="cluster-dot";
+                    dot.style.left=Math.random()*sizePx+'px'; dot.style.top=Math.random()*sizePx+'px';
+                    div.appendChild(dot);
+                }
+                face.appendChild(div);
+            } else if(def.id === 'crack') {
+                face.innerHTML += `<svg class="crack-svg" style="left:${x}px; top:90px" width="${sizePx}" height="20"><path d="M 0 10 L ${sizePx*0.3} 2 L ${sizePx*0.6} 18 L ${sizePx} 10" stroke="black"/></svg>`;
+            } else if(def.id === 'undercut') { div.style.top = Math.random() > 0.5 ? '65px' : '130px'; face.appendChild(div); }
+            else { div.style.top='90px'; div.style.height=sizePx+'px'; face.appendChild(div); }
+            let rej = (def.id === 'crack' || def.id === 'ip' || def.id === 'lswf' || sizeMm > 2.0 || (def.id==='undercut' && sizeMm > 1.0));
+            currentAnswers.push({ label: def.label, type: def.id, size: parseFloat(sizeMm), dec: rej ? "REJECT" : "ACCEPT" });
+        }
+        document.getElementById('progress-text').innerText = `${specIndex} / 5`;
+    }
+
+    function submitSpecimen() {
+        let score = 0;
+        const uFinal = document.getElementById('final-decision').value;
+        const sFinal = currentAnswers.some(a => a.dec === "REJECT") ? "REJECT" : "ACCEPT";
+        if(uFinal === sFinal) score += 40;
+        let kh = "";
+        currentAnswers.forEach((a, i) => {
+            const ut = document.getElementById(`t${i+1}`).value;
+            const us = parseFloat(document.getElementById(`s${i+1}`).value) || 0;
+            const ud = document.getElementById(`d${i+1}`).value;
+            if(ut === a.type) score += 5;
+            if(Math.abs(us - a.size) <= 0.8) score += 10;
+            if(ud === a.dec) score += 5;
+            kh += `<div class="key-row"><span>${a.label}</span><span>${a.size}mm</span><span style="color:${a.dec==='REJECT'?'var(--danger)':'var(--success)'}">${a.dec}</span></div>`;
+        });
+        totalScore += score;
+        document.getElementById('key-text').innerHTML = kh;
+        document.getElementById('key-section').style.display = 'block';
+        document.getElementById('btn-submit').style.display = 'none';
+    }
+
+    function nextStep() {
+        if(specIndex >= 5) {
+            showCertificate((totalScore / 5).toFixed(1));
+        } else {
+            specIndex++; 
+            document.getElementById('key-section').style.display = 'none';
+            document.getElementById('btn-submit').style.display = 'block';
+            for(let i=1; i<=3; i++) document.getElementById(`s${i}`).value = "";
+            generateDefects();
+        }
+    }
+
+    function showCertificate(avg) {
+        const s = avg >= 70 ? "PASSED" : "FAILED";
+        document.getElementById('res-name').innerText = currentParticipant.toUpperCase();
+        document.getElementById('res-score').innerText = avg;
+        document.getElementById('res-status').innerText = s;
+        document.getElementById('res-status').style.color = avg >= 70 ? "green" : "red";
+        document.getElementById('modal-result').style.display = 'flex';
+        document.getElementById('log-body').innerHTML += `<tr><td>${currentParticipant}</td><td>${avg}</td><td>${s}</td></tr>`;
+        if(scriptURL.startsWith('http')) {
+            fetch(scriptURL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ nama: currentParticipant, skor: avg, status: s }) });
+        }
+    }
+
+    function resetLogs() { if(confirm("Hapus semua riwayat log lokal?")) document.getElementById('log-body').innerHTML = ""; }
+
+    function restartSimulator() {
+        document.getElementById('modal-result').style.display = 'none';
+        document.getElementById('form-exam').style.display = 'none';
+        document.getElementById('key-section').style.display = 'none';
+        document.getElementById('form-login').style.display = 'block';
+        document.getElementById('input-name').value = "";
+        document.getElementById('btn-submit').style.display = 'block';
+        specIndex = 1; totalScore = 0;
+        document.getElementById('progress-text').innerText = "1 / 5";
+        document.getElementById('user-disp').innerText = "-";
+        document.getElementById('face-layer').innerHTML = "";
+        document.getElementById('root-layer').innerHTML = "";
+    }
+
+    // RULER
+    function startRuler(e) { isDrawing = true; activeViewport = e.currentTarget; const r = activeViewport.getBoundingClientRect(); startX = e.clientX - r.left; startY = e.clientY - r.top; document.getElementById('ruler').style.display = 'block'; }
+    function moveRuler(e) { if(!isDrawing) return; const r = activeViewport.getBoundingClientRect(); const curX = e.clientX - r.left; const curY = e.clientY - r.top; const dist = (Math.sqrt(Math.pow(curX-startX, 2) + Math.pow(curY-startY, 2)) * 0.2).toFixed(1); const rl = document.getElementById('ruler'); rl.style.left = (startX + r.left + window.scrollX) + 'px'; rl.style.top = (startY + r.top + window.scrollY) + 'px'; rl.style.width = (dist/0.2) + 'px'; rl.style.transform = `rotate(${Math.atan2(curY-startY, curX-startX)}rad)`; const v = document.getElementById('ruler-val'); v.style.display = 'block'; v.style.left = (e.clientX + 10) + 'px'; v.style.top = (e.clientY - 20) + 'px'; v.innerText = dist + " mm"; }
+    function endRuler() { isDrawing = false; }
+</script>
+</body>
+</html>
